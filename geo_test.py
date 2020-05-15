@@ -18,11 +18,11 @@ def get_intersection_area(sentinel_poligon, poly_sentinel_name, region):
     # merging the polygons - they are feature collections, containing a point, a polyline, and a polygon - I extract the polygon
     # for my purposes, they overlap, so merging produces a single polygon rather than a list of polygons
     intersection_polygon = sentinel_poligon.intersection(region)
-    if intersection_polygon.is_empty:
-        pass
+    if not intersection_polygon.is_empty and area(
+            geojson.Feature(geometry=intersection_polygon, properties={}).geometry) > 1000:
+        return poly_sentinel_name
     else:
-        geojson_out = geojson.Feature(geometry=intersection_polygon, properties={})
-        print(area(geojson_out.geometry))
+        pass
 
         # outputting the updated geojson file - for mapping/storage in its GCS format
         # with open('Merged_Polygon.json', 'w') as outfile:
@@ -40,18 +40,21 @@ def get_intersection_area(sentinel_poligon, poly_sentinel_name, region):
 
 
 def iterator(sentinel_poligons, region):
+    suitable_regions = []
     poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
     for poligon in sentinel_poligons['features']:
         poly_sentinel = shapely.geometry.asShape(poligon['geometry'])
         poly_sentinel_name = poligon['properties']["Name"]
-        get_intersection_area(poly_sentinel, poly_sentinel_name, poly_region)
-
-        # print(poly1)
+        suitable_region = get_intersection_area(poly_sentinel, poly_sentinel_name, poly_region)
+        if suitable_region:
+            suitable_regions.append(suitable_region)
+    return suitable_regions
 
 
 def main():
     [sentinel_poligons, region] = read_geojson("sentinel2_tiles.geojson", "kharkiv_region.geojson")
-    iterator(sentinel_poligons, region)
+    suitable_regions = iterator(sentinel_poligons, region)
+    print(suitable_regions)
 
 
 if __name__ == '__main__':
