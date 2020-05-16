@@ -20,7 +20,10 @@ def get_intersection_area(sentinel_poligon, poly_sentinel_name, region):
     intersection_polygon = sentinel_poligon.intersection(region)
     if not intersection_polygon.is_empty and area(
             geojson.Feature(geometry=intersection_polygon, properties={}).geometry) > 1000:
-        return poly_sentinel_name
+        poly_sentinel_dict = {}
+        poly_sentinel_dict['mame'] = poly_sentinel_name
+        poly_sentinel_dict['poly'] = geojson.Feature(geometry=intersection_polygon, properties={}).geometry
+        return poly_sentinel_dict
     else:
         pass
 
@@ -39,16 +42,26 @@ def get_intersection_area(sentinel_poligon, poly_sentinel_name, region):
     # outfile.close()
 
 
+def cross_poligon(poligons_dict, region):
+    pass
+
+
 def iterator(sentinel_poligons, region):
-    suitable_regions = []
     poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
-    for poligon in sentinel_poligons['features']:
-        poly_sentinel = shapely.geometry.asShape(poligon['geometry'])
-        poly_sentinel_name = poligon['properties']["Name"]
+    iteration_range = len(sentinel_poligons['features'])
+    poligon_idx = 0
+    while poligon_idx < iteration_range:
+        poly_sentinel = shapely.geometry.asShape(sentinel_poligons['features'][poligon_idx]['geometry'])
+        poly_sentinel_name = sentinel_poligons['features'][poligon_idx]['properties']["Name"]
         suitable_region = get_intersection_area(poly_sentinel, poly_sentinel_name, poly_region)
-        if suitable_region:
-            suitable_regions.append(suitable_region)
-    return suitable_regions
+        if not suitable_region:
+            del sentinel_poligons['features'][poligon_idx]
+            iteration_range -=1
+        else:
+            del sentinel_poligons['features'][poligon_idx]['properties']["description"]
+            poligon_idx += 1
+
+    return sentinel_poligons
 
 
 def main():
