@@ -70,7 +70,30 @@ def check_cross_polygon(polygons_dict, region):
                 del polygons_dict['features'][inter_poly]
         return polygons_dict
 
-    # u = cascaded_union(intersection_polygons)
+
+def remove_excess_polygon(polygons_dict, region):
+    poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
+    poly_region_default_area = area(
+        geojson.Feature(geometry=poly_region, properties={}).geometry)
+    idx = 0
+    iteration_range = len(polygons_dict['features'])
+    while idx < iteration_range:
+        poly_list = []
+        poly_copy = copy.deepcopy(polygons_dict)
+        del poly_copy['features'][idx]
+        for el in poly_copy['features']:
+            el_poly = shapely.geometry.asShape(el['geometry'])
+            poly_list.append(el_poly)
+        union_poly = cascaded_union(poly_list)
+        print(union_poly)
+        intersection_polygon = union_poly.intersection(poly_region)
+        intersection_polygon_area = area(geojson.Feature(geometry=intersection_polygon, properties={}).geometry)
+        if float("{0:.3f}".format(poly_region_default_area)) == float("{0:.3f}".format(intersection_polygon_area)):
+            del polygons_dict['features'][idx]
+            iteration_range -= 1
+        else:
+            idx += 1
+    return polygons_dict
     # geojson_out = geojson.Feature(geometry=u, properties={})
     # print(geojson_out)
 
@@ -94,10 +117,12 @@ def iterator(sentinel_polygons, region):
 def main():
     [sentinel_polygons, region] = read_geojson("sentinel2_tiles.geojson", "kharkiv_region.geojson")
     suitable_regions = iterator(sentinel_polygons, region)
-    cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
-    print(suitable_regions)
+    excess = remove_excess_polygon(copy.deepcopy(suitable_regions), region)
+    print(excess)
+    # cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
+    # print(suitable_regions)
     # print(suitable_regions_copy)
-    print(cross_polygon)
+    # print(cross_polygon)
 
 
 if __name__ == '__main__':
