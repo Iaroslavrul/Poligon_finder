@@ -8,11 +8,8 @@ from area import area
 import copy
 from shapely.ops import cascaded_union
 
-# input_file_path = sys.argv[1]
-# output_file_path = sys.argv[2]
-
-input_file_path = 'kharkiv_region.geojson'
-output_file_path = 'Merged_Polygon.json'
+input_file_path = sys.argv[1]
+output_file_path = sys.argv[2]
 
 
 def read_geojson(polygons_file, region_file):
@@ -128,14 +125,19 @@ def result_writer(result_poly):
 
 def choice_to_write(suitable_regions, cross_polygon, excess_poly):
     if cross_polygon:
-        print('cross_polygon')
         return cross_polygon
     if excess_poly:
-        print('excess_poly')
         return excess_poly
     else:
-        print("suitable_regions")
-    return suitable_regions
+        return suitable_regions
+
+
+def print_name(polygon):
+    names = []
+    for el in polygon['features']:
+        names.append(el["properties"]["Name"])
+    names_to_str = ', '.join(names)
+    print(names_to_str)
 
 
 def main():
@@ -144,11 +146,8 @@ def main():
     excess = remove_excess_polygon(copy.deepcopy(suitable_regions), region)
     cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
     result_choice = choice_to_write(suitable_regions, cross_polygon, excess)
-    # print(excess)
-    # print(cross_polygon)
-    # print(sentinel_polygons)
-    print(result_choice)
-    # result_writer(excess)
+    result_writer(result_choice)
+    print_name(result_choice)
 
 
 if __name__ == '__main__':
