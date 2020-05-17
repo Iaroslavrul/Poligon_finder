@@ -3,6 +3,7 @@ import geojson
 import shapely.geometry
 import shapely.ops
 from area import area
+import copy
 from shapely.ops import cascaded_union
 from functools import reduce
 
@@ -42,6 +43,8 @@ def get_intersection_area(sentinel_polygon, region):
 
 
 def check_cross_polygon(polygons_dict, region):
+    result_poly_name = ''
+    poly_names = []
     poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
     poly_region_default_area = area(
         geojson.Feature(geometry=poly_region, properties={}).geometry)
@@ -58,15 +61,14 @@ def check_cross_polygon(polygons_dict, region):
                 intersection_region_area = area(geojson.Feature(geometry=intersection_region, properties={}).geometry)
                 if float("{0:.3f}".format(intersection_region_area)) == float(
                         "{0:.3f}".format(poly_region_default_area)):
-                    poly_names = []
                     poly_names.append(main_el["properties"]["Name"])
                     poly_names.append(child_el["properties"]["Name"])
-    result_poly_name = sorted(set(poly_names))[0]
-    for inter_poly in range(len(polygons_dict['features'])):
-        if polygons_dict['features'][inter_poly]["properties"]["Name"] != result_poly_name:
-            del polygons_dict['features'][inter_poly]
-    print(polygons_dict)
-    return polygons_dict
+    if poly_names:
+        result_poly_name = sorted(set(poly_names))[0]
+        for inter_poly in range(len(polygons_dict['features'])):
+            if polygons_dict['features'][inter_poly]["properties"]["Name"] != result_poly_name:
+                del polygons_dict['features'][inter_poly]
+        return polygons_dict
 
     # u = cascaded_union(intersection_polygons)
     # geojson_out = geojson.Feature(geometry=u, properties={})
@@ -92,8 +94,10 @@ def iterator(sentinel_polygons, region):
 def main():
     [sentinel_polygons, region] = read_geojson("sentinel2_tiles.geojson", "kharkiv_region.geojson")
     suitable_regions = iterator(sentinel_polygons, region)
-    cross_polygon = check_cross_polygon(suitable_regions, region)
-    # print(suitable_regions)
+    cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
+    print(suitable_regions)
+    # print(suitable_regions_copy)
+    print(cross_polygon)
 
 
 if __name__ == '__main__':
