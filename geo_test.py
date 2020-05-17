@@ -1,15 +1,22 @@
 import json
+import sys
+
 import geojson
 import shapely.geometry
 import shapely.ops
 from area import area
 import copy
 from shapely.ops import cascaded_union
-from functools import reduce
+
+# input_file_path = sys.argv[1]
+# output_file_path = sys.argv[2]
+
+input_file_path = 'kharkiv_region.geojson'
+output_file_path = 'Merged_Polygon.json'
 
 
 def read_geojson(polygons_file, region_file):
-    # reading into two geojson objects
+    # Чтение двух объектов Geojson
     with open(polygons_file) as geojson1:
         poly1_geojson = json.load(geojson1)
     with open(region_file) as geojson2:
@@ -18,28 +25,14 @@ def read_geojson(polygons_file, region_file):
 
 
 def get_intersection_area(sentinel_polygon, region):
-    # merging the polygons - they are feature collections, containing a point, a polyline, and a polygon - I extract the polygon
-    # for my purposes, they overlap, so merging produces a single polygon rather than a list of polygons
+    # Нажождения общего вхождения многоугольников - это наборы объектов, содержащие точку, ломаную линию и многоугольник - я извлекаю многоугольник
+    # для моих целей они перекрываются, поэтому при слиянии получается один полигон, а не список полигонов
     intersection_polygon = sentinel_polygon.intersection(region)
     if not intersection_polygon.is_empty and area(
             geojson.Feature(geometry=intersection_polygon, properties={}).geometry) > 1000:
         return area(geojson.Feature(geometry=intersection_polygon, properties={}).geometry)
     else:
         pass
-
-        # outputting the updated geojson file - for mapping/storage in its GCS format
-        # with open('Merged_Polygon.json', 'w') as outfile:
-        #     json.dump(geojson_out.geometry, outfile, indent=3)
-        # outfile.close()
-        # with open('Merged_Polygon.json') as geojson3:
-        #     poly3_geojson = json.load(geojson3)
-        #     print(area(poly3_geojson))
-    # using geojson module to convert from WKT back into GeoJSON format
-
-    # outputting the updated geojson file - for mapping/storage in its GCS format
-    # with open('Merged_Polygon.json', 'w') as outfile:
-    #     json.dump(geojson_out.geometry, outfile, indent=3)
-    # outfile.close()
 
 
 def check_cross_polygon(polygons_dict, region):
@@ -59,8 +52,8 @@ def check_cross_polygon(polygons_dict, region):
                     geojson.Feature(geometry=intersection_polygon, properties={}).geometry) < control_area:
                 intersection_region = poly_region.intersection(intersection_polygon)
                 intersection_region_area = area(geojson.Feature(geometry=intersection_region, properties={}).geometry)
-                if float("{0:.3f}".format(intersection_region_area)) == float(
-                        "{0:.3f}".format(poly_region_default_area)):
+                if float("{0:.2f}".format(intersection_region_area)) == float(
+                        "{0:.2f}".format(poly_region_default_area)):
                     poly_names.append(main_el["properties"]["Name"])
                     poly_names.append(child_el["properties"]["Name"])
     if poly_names:
@@ -68,10 +61,11 @@ def check_cross_polygon(polygons_dict, region):
         for inter_poly in range(len(polygons_dict['features'])):
             if polygons_dict['features'][inter_poly]["properties"]["Name"] != result_poly_name:
                 del polygons_dict['features'][inter_poly]
-        return polygons_dict
+    return polygons_dict
 
 
 def remove_excess_polygon(polygons_dict, region):
+    intersection_polygon_area = 0
     poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
     poly_region_default_area = area(
         geojson.Feature(geometry=poly_region, properties={}).geometry)
@@ -85,17 +79,18 @@ def remove_excess_polygon(polygons_dict, region):
             el_poly = shapely.geometry.asShape(el['geometry'])
             poly_list.append(el_poly)
         union_poly = cascaded_union(poly_list)
-        print(union_poly)
         intersection_polygon = union_poly.intersection(poly_region)
-        intersection_polygon_area = area(geojson.Feature(geometry=intersection_polygon, properties={}).geometry)
-        if float("{0:.3f}".format(poly_region_default_area)) == float("{0:.3f}".format(intersection_polygon_area)):
+        if not intersection_polygon.is_empty:
+            intersection_polygon_area = area(geojson.Feature(geometry=intersection_polygon, properties={}).geometry)
+        if float("{0:.2f}".format(poly_region_default_area)) == float("{0:.2f}".format(intersection_polygon_area)):
             del polygons_dict['features'][idx]
             iteration_range -= 1
         else:
             idx += 1
-    return polygons_dict
-    # geojson_out = geojson.Feature(geometry=u, properties={})
-    # print(geojson_out)
+    if len(polygons_dict['features']) > 0:
+        return polygons_dict
+    else:
+        return None
 
 
 def iterator(sentinel_polygons, region):
@@ -114,15 +109,30 @@ def iterator(sentinel_polygons, region):
     return sentinel_polygons
 
 
+def result_writer(result_poly):
+    # Запись найденной коллекции геометрий в файл в формате geojson
+    with open(output_file_path, 'w') as outfile:
+        json.dump(result_poly, outfile, indent=3)
+    outfile.close()
+
+
+def choice_to_write(suitable_regions, cross_polygon, excess_poly):
+    if excess_poly:
+        return excess_poly
+    elif cross_polygon:
+        return cross_polygon
+    else:
+        return suitable_regions
+
+
 def main():
-    [sentinel_polygons, region] = read_geojson("sentinel2_tiles.geojson", "kharkiv_region.geojson")
+    [sentinel_polygons, region] = read_geojson("sentinel2_tiles.geojson", input_file_path)
     suitable_regions = iterator(sentinel_polygons, region)
     excess = remove_excess_polygon(copy.deepcopy(suitable_regions), region)
-    print(excess)
-    # cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
-    # print(suitable_regions)
-    # print(suitable_regions_copy)
-    # print(cross_polygon)
+    cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
+    result_choice = choice_to_write(suitable_regions, cross_polygon, excess)
+    print(result_choice)
+    # result_writer(excess)
 
 
 if __name__ == '__main__':
