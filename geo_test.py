@@ -8,8 +8,12 @@ from area import area
 import copy
 from shapely.ops import cascaded_union
 
-input_file_path = sys.argv[1]
-output_file_path = sys.argv[2]
+try:
+    input_file_path = sys.argv[1]
+    output_file_path = sys.argv[2]
+except IndexError:
+    input_file_path = 'kharkiv_region.geojson'
+    output_file_path = 'Merged_Polygon.json'
 
 
 def read_geojson(polygons_file, region_file):
@@ -22,8 +26,9 @@ def read_geojson(polygons_file, region_file):
 
 
 def get_intersection_area(sentinel_polygon, region):
-    # Нажождения общего вхождения многоугольников - это наборы объектов, содержащие точку, ломаную линию и многоугольник - я извлекаю многоугольник
-    # для моих целей они перекрываются, поэтому при слиянии получается один полигон, а не список полигонов
+    """ Нахождение общего вхождения многоугольников - это наборы объектов, содержащие точку,
+    ломаную линию и многоугольник - я извлекаю многоугольник для моих целей они перекрываются,
+    поэтому при слиянии получается один полигон, а не список полигонов"""
     intersection_polygon = sentinel_polygon.intersection(region)
     if not intersection_polygon.is_empty and area(
             geojson.Feature(geometry=intersection_polygon, properties={}).geometry) > 1000:
@@ -33,6 +38,8 @@ def get_intersection_area(sentinel_polygon, region):
 
 
 def check_cross_polygon(polygons_dict, region):
+    """ Проверка на полное вхождение заданной области исключительно в область пересеченич полигонов и при
+    выполнении условия возращение полигона с найменьшим индексом"""
     result_poly_name = ''
     start_len = len(polygons_dict['features'])
     poly_names = []
@@ -69,6 +76,8 @@ def check_cross_polygon(polygons_dict, region):
 
 
 def remove_excess_polygon(polygons_dict, region):
+    """ Удаление полигонов, которые покрывают заданную область только областью перекрытия с
+соседним полигоном"""
     start_len = len(polygons_dict['features'])
     poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
     poly_region_default_area = area(
@@ -101,6 +110,7 @@ def remove_excess_polygon(polygons_dict, region):
 
 
 def iterator(sentinel_polygons, region):
+    """ Нахождение полигонов, площадь пересечения которых с заданной областью превышает 1000 кв.м"""
     poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
     iteration_range = len(sentinel_polygons['features'])
     polygon_idx = 0
@@ -117,13 +127,14 @@ def iterator(sentinel_polygons, region):
 
 
 def result_writer(result_poly):
-    # Запись найденной коллекции геометрий в файл в формате geojson
+    """ Запись найденной коллекции геометрий в файл в формате geojson"""
     with open(output_file_path, 'w') as outfile:
         json.dump(result_poly, outfile, indent=3)
     outfile.close()
 
 
 def choice_to_write(suitable_regions, cross_polygon, excess_poly):
+    """ Определение какой набор необходимых полигонов, полностью покрывающих заданную область"""
     if cross_polygon:
         return cross_polygon
     if excess_poly:
@@ -133,11 +144,12 @@ def choice_to_write(suitable_regions, cross_polygon, excess_poly):
 
 
 def print_name(polygon):
+    """ Вывод в консоль имен определенных полигонов"""
     names = []
     for el in polygon['features']:
         names.append(el["properties"]["Name"])
     names_to_str = ', '.join(names)
-    print(names_to_str)
+    return names_to_str
 
 
 def main():
@@ -147,7 +159,7 @@ def main():
     cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
     result_choice = choice_to_write(suitable_regions, cross_polygon, excess)
     result_writer(result_choice)
-    print_name(result_choice)
+    print(print_name(result_choice))
 
 
 if __name__ == '__main__':
