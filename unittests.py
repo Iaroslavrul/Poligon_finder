@@ -12,31 +12,31 @@ class Sentinel2overlapTest(unittest.TestCase):
             poly1_geojson = json.load(geojson1)
         with open('kharkiv_region.geojson') as geojson2:
             poly2_geojson = json.load(geojson2)
-        with open('suitable_regions_test_valid.geojson') as geojson_res:
+        with open('data_for_tests/suitable_regions_test_valid.geojson') as geojson_res:
             expected_response = json.load(geojson_res)
         test_request = iterator(poly1_geojson, poly2_geojson)
         self.assertEqual(test_request, expected_response)
 
     def test_remove_excess_polygon(self):
-        with open('cross_test_valid.geojson') as geojson_res:
+        with open('data_for_tests/cross_test_valid.geojson') as geojson_res:
             poly = json.load(geojson_res)
-        with open('excess_ut_region.geojson') as geojson_reg:
+        with open('data_for_tests/excess_ut_region.geojson') as geojson_reg:
             poly_reg = json.load(geojson_reg)
         test_request = remove_excess_polygon(poly, poly_reg)
         test_request_name = test_request['features'][0]["properties"]["Name"]
         self.assertEqual(test_request_name, "37URQ")
 
     def test_check_cross_polygon(self):
-        with open('cross_test_valid.geojson') as geojson_res:
+        with open('data_for_tests/cross_test_valid.geojson') as geojson_res:
             poly = json.load(geojson_res)
-        with open('cross_region_test.geojson') as geojson_reg:
+        with open('data_for_tests/cross_region_test.geojson') as geojson_reg:
             poly_reg = json.load(geojson_reg)
         test_request = check_cross_polygon(poly, poly_reg)
         test_request_name = test_request['features'][0]["properties"]["Name"]
         self.assertEqual(test_request_name, "37UDQ")
 
     def test_get_intersection_area(self):
-        with open('get_intersection_area_poly.geojson') as geojson2:
+        with open('data_for_tests/get_intersection_area_poly.geojson') as geojson2:
             poly_geojson = json.load(geojson2)
         poly_region = shapely.geometry.asShape(poly_geojson['features'][0]['geometry'])
         poly_sentinel = shapely.geometry.asShape(poly_geojson['features'][1]['geometry'])
