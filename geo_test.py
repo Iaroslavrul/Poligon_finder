@@ -1,6 +1,5 @@
+import argparse
 import json
-import sys
-
 import geojson
 import shapely.geometry
 import shapely.ops
@@ -9,15 +8,19 @@ import copy
 from shapely.ops import cascaded_union
 
 try:
-    input_file_path = sys.argv[1]
-    output_file_path = sys.argv[2]
+    parser = argparse.ArgumentParser(description='Sentinel to overlap')
+    parser.add_argument('indir', type=str, help='Path to the input file in geojson format')
+    parser.add_argument('outdir', type=str, help='Path to the output file in geojson format')
+    args = parser.parse_args()
+    input_file_path = args.indir
+    output_file_path = args.outdir
 except IndexError:
     input_file_path = 'kharkiv_region.geojson'
     output_file_path = 'Merged_Polygon.json'
 
 
 def read_geojson(polygons_file, region_file):
-    # Чтение двух объектов Geojson
+    """ Reading two Geojson objects"""
     with open(polygons_file) as geojson1:
         poly1_geojson = json.load(geojson1)
     with open(region_file) as geojson2:
@@ -26,9 +29,8 @@ def read_geojson(polygons_file, region_file):
 
 
 def get_intersection_area(sentinel_polygon, region):
-    """ Нахождение общего вхождения многоугольников - это наборы объектов, содержащие точку,
-    ломаную линию и многоугольник - я извлекаю многоугольник для моих целей они перекрываются,
-    поэтому при слиянии получается один полигон, а не список полигонов"""
+    """ This function finds the common occurrence of polygons. All polygons that are not subject
+    to common occurrence are removed from the list"""
     intersection_polygon = sentinel_polygon.intersection(region)
     if not intersection_polygon.is_empty and area(
             geojson.Feature(geometry=intersection_polygon, properties={}).geometry) > 1000:
@@ -38,8 +40,8 @@ def get_intersection_area(sentinel_polygon, region):
 
 
 def check_cross_polygon(polygons_dict, region):
-    """ Проверка на полное вхождение заданной области исключительно в область пересеченич полигонов и при
-    выполнении условия возращение полигона с найменьшим индексом"""
+    """ Checking for the complete occurrence of a given area exclusively in the area of intersection of polygons
+    and when the condition is met, returns the polygon with the lowest index"""
     result_poly_name = ''
     start_len = len(polygons_dict['features'])
     poly_names = []
@@ -76,8 +78,7 @@ def check_cross_polygon(polygons_dict, region):
 
 
 def remove_excess_polygon(polygons_dict, region):
-    """ Удаление полигонов, которые покрывают заданную область только областью перекрытия с
-соседним полигоном"""
+    """ The function removes polygons that cover a given area only with the overlap area with the adjacent polygon."""
     start_len = len(polygons_dict['features'])
     poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
     poly_region_default_area = area(
@@ -110,7 +111,7 @@ def remove_excess_polygon(polygons_dict, region):
 
 
 def iterator(sentinel_polygons, region):
-    """ Нахождение полигонов, площадь пересечения которых с заданной областью превышает 1000 кв.м"""
+    """ Finding polygons whose intersection area with a given area exceeds 1000 sq.m"""
     poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
     iteration_range = len(sentinel_polygons['features'])
     polygon_idx = 0
@@ -127,14 +128,15 @@ def iterator(sentinel_polygons, region):
 
 
 def result_writer(result_poly):
-    """ Запись найденной коллекции геометрий в файл в формате geojson"""
+    """ Writing the found geometry collection to a file in geojson format"""
     with open(output_file_path, 'w') as outfile:
         json.dump(result_poly, outfile, indent=3)
     outfile.close()
 
 
 def choice_to_write(suitable_regions, cross_polygon, excess_poly):
-    """ Определение какой набор необходимых полигонов, полностью покрывающих заданную область"""
+    """ Determination of the desired collection of polygons that completely cover a given area
+    from those that were found in other functions earlier"""
     if cross_polygon:
         return cross_polygon
     if excess_poly:
@@ -144,7 +146,7 @@ def choice_to_write(suitable_regions, cross_polygon, excess_poly):
 
 
 def print_name(polygon):
-    """ Вывод в консоль имен определенных полигонов"""
+    """ Output to the console the names of certain polygons"""
     names = []
     for el in polygon['features']:
         names.append(el["properties"]["Name"])
@@ -153,7 +155,7 @@ def print_name(polygon):
 
 
 def main():
-    [sentinel_polygons, region] = read_geojson("sentinel2_tiles.geojson", input_file_path)
+    sentinel_polygons, region = read_geojson("sentinel2_tiles.geojson", input_file_path)
     suitable_regions = iterator(sentinel_polygons, region)
     excess = remove_excess_polygon(copy.deepcopy(suitable_regions), region)
     cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
