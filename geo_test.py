@@ -1,5 +1,7 @@
 import argparse
 import json
+import time
+
 import geojson
 import shapely.geometry
 import shapely.ops
@@ -19,15 +21,6 @@ import binary_search as bs
 # except IndexError:
 input_file_path = 'kharkiv_region.geojson'
 output_file_path = 'Merged_Polygon.json'
-
-
-def read_geojson(polygons_file, region_file):
-    """ Reading two Geojson objects"""
-    with open(polygons_file) as geojson1:
-        poly1_geojson = json.load(geojson1)
-    with open(region_file) as geojson2:
-        poly2_geojson = json.load(geojson2)
-    return poly1_geojson, poly2_geojson
 
 
 def check_cross_polygon(polygons_dict, region):
@@ -104,20 +97,14 @@ def get_intersecting_polygons(sentinel_polygons, input_region):
     sentinel = gpd.read_file(sentinel_polygons)
     region = gpd.read_file(input_region)
     res_intersection = gpd.overlay(region, sentinel, how='intersection')
-    sentinel_name_list = sentinel['Name'].values.tolist()
-    sentinel_geometry_list = sentinel['geometry'].values
     idx = 0
-    poly_index_list = []
     iteration_range = len(res_intersection)
+    del_poly = res_intersection
     while idx < iteration_range:
-        if area(geojson.Feature(geometry=res_intersection['geometry'][idx], properties={}).geometry) > 1000:
-            polygon_idx = bs.search(sentinel_name_list, res_intersection["Name"][idx])
-            poly = geojson.Feature(geometry=sentinel_geometry_list[polygon_idx], properties={})
-            poly['properties']["Name"] = res_intersection["Name"][idx]
-            print(res_intersection["Name"][idx])
-            poly_index_list.append(poly)
+        if not area(geojson.Feature(geometry=res_intersection['geometry'][idx], properties={}).geometry) > 1000:
+            del_poly = del_poly.drop(idx)
         idx += 1
-    return poly_index_list, region['geometry'][0]
+    return del_poly.reset_index(drop=True), region['geometry'][0]
 
 
 def result_writer(result_poly):
@@ -148,9 +135,11 @@ def print_name(polygon):
 
 
 def main():
+    # start_time = time.time()
     suitable_regions, region = get_intersecting_polygons("sentinel2_tiles.geojson", input_file_path)
+    # print("--- %s seconds ---" % (time.time() - start_time))
     excess = remove_excess_polygon(copy.deepcopy(suitable_regions), region)
-    print(excess)
+    # print(suitable_regions)
     # cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
     # result_choice = choice_to_write(suitable_regions, cross_polygon, excess)
     # result_writer(result_choice)
