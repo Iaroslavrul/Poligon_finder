@@ -9,16 +9,12 @@ from shapely.ops import cascaded_union
 import geopandas as gpd
 import binary_search as bs
 
-try:
-    parser = argparse.ArgumentParser(description='Sentinel to overlap')
-    parser.add_argument('indir', type=str, help='Path to the input file in geojson format')
-    parser.add_argument('outdir', type=str, help='Path to the output file in geojson format')
-    args = parser.parse_args()
-    input_file_path = args.indir
-    output_file_path = args.outdir
-except IndexError:
-    input_file_path = 'kharkiv_region.geojson'
-    output_file_path = 'Merged_Polygon.json'
+parser = argparse.ArgumentParser(description='Sentinel to overlap')
+parser.add_argument('indir', nargs='?', const='kharkiv_region.geojson', type=str, help='Path to the input file in geojson format', default='kharkiv_region.geojson')
+parser.add_argument('outdir', nargs='?', const='Merged_Polygon.json', type=str, help='Path to the output file in geojson format', default='Merged_Polygon.json')
+args = parser.parse_args()
+input_file_path = args.indir
+output_file_path = args.outdir
 
 
 def check_cross_polygon(polygons_dict, region):
