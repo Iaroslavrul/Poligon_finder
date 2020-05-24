@@ -1,6 +1,5 @@
 import argparse
 import json
-import time
 
 import geojson
 import shapely.geometry
@@ -11,29 +10,28 @@ from shapely.ops import cascaded_union
 import geopandas as gpd
 import binary_search as bs
 
-# try:
-#     parser = argparse.ArgumentParser(description='Sentinel to overlap')
-#     parser.add_argument('indir', type=str, help='Path to the input file in geojson format')
-#     parser.add_argument('outdir', type=str, help='Path to the output file in geojson format')
-#     args = parser.parse_args()
-#     input_file_path = args.indir
-#     output_file_path = args.outdir
-# except IndexError:
-input_file_path = 'kharkiv_region.geojson'
-output_file_path = 'Merged_Polygon.json'
+try:
+    parser = argparse.ArgumentParser(description='Sentinel to overlap')
+    parser.add_argument('indir', type=str, help='Path to the input file in geojson format')
+    parser.add_argument('outdir', type=str, help='Path to the output file in geojson format')
+    args = parser.parse_args()
+    input_file_path = args.indir
+    output_file_path = args.outdir
+except IndexError:
+    input_file_path = 'kharkiv_region.geojson'
+    output_file_path = 'Merged_Polygon.json'
 
 
 def check_cross_polygon(polygons_dict, region):
     """ Checking for the complete occurrence of a given area exclusively in the area of intersection of polygons
     and when the condition is met, returns the polygon with the lowest index"""
     result_poly_name = ''
-    start_len = len(polygons_dict['features'])
+    start_len = len(polygons_dict)
     poly_names = []
-    poly_region = shapely.geometry.asShape(region['features'][0]['geometry'])
     poly_region_default_area = area(
-        geojson.Feature(geometry=poly_region, properties={}).geometry)
-    for main_el in polygons_dict['features']:
-        for child_el in polygons_dict['features']:
+        geojson.Feature(geometry=region, properties={}).geometry)
+    for main_el in polygons_dict:
+        for child_el in polygons_dict:
             intersection_region_area = 0
             main_poly = shapely.geometry.asShape(main_el['geometry'])
             child_poly = shapely.geometry.asShape(child_el['geometry'])
@@ -42,7 +40,7 @@ def check_cross_polygon(polygons_dict, region):
                 geojson.Feature(geometry=child_poly, properties={}).geometry)
             if not intersection_polygon.is_empty and area(
                     geojson.Feature(geometry=intersection_polygon, properties={}).geometry) < control_area:
-                intersection_region = poly_region.intersection(intersection_polygon)
+                intersection_region = region.intersection(intersection_polygon)
                 if not intersection_region.is_empty:
                     intersection_region_area = area(
                         geojson.Feature(geometry=intersection_region, properties={}).geometry)
@@ -52,10 +50,15 @@ def check_cross_polygon(polygons_dict, region):
                     poly_names.append(child_el["properties"]["Name"])
     if poly_names:
         result_poly_name = sorted(set(poly_names))[0]
-        for inter_poly in range(len(polygons_dict['features'])):
-            if polygons_dict['features'][inter_poly]["properties"]["Name"] != result_poly_name:
-                del polygons_dict['features'][inter_poly]
-    if len(polygons_dict['features']) != start_len:
+        idx = 0
+        iteration_range = len(polygons_dict)
+        while idx < iteration_range:
+            if polygons_dict[idx]["properties"]["Name"] != result_poly_name:
+                del polygons_dict[idx]
+                iteration_range -= 1
+            else:
+                idx += 1
+    if len(polygons_dict) != start_len:
         return polygons_dict
     else:
         return None
@@ -94,23 +97,32 @@ def remove_excess_polygon(polygons_dict, region):
 
 
 def get_intersecting_polygons(sentinel_polygons, input_region):
+    """ Finding polygons whose intersection area with a given area exceeds 1000 sq.m"""
     sentinel = gpd.read_file(sentinel_polygons)
     region = gpd.read_file(input_region)
     res_intersection = gpd.overlay(region, sentinel, how='intersection')
+    sentinel_name_list = sentinel['Name'].values.tolist()
+    sentinel_geometry_list = sentinel['geometry'].values
     idx = 0
+    poly_index_list = []
     iteration_range = len(res_intersection)
-    del_poly = res_intersection
     while idx < iteration_range:
-        if not area(geojson.Feature(geometry=res_intersection['geometry'][idx], properties={}).geometry) > 1000:
-            del_poly = del_poly.drop(idx)
+        if area(geojson.Feature(geometry=res_intersection['geometry'][idx], properties={}).geometry) > 1000:
+            polygon_idx = bs.search(sentinel_name_list, res_intersection["Name"][idx])
+            poly = geojson.Feature(geometry=sentinel_geometry_list[polygon_idx], properties={})
+            poly['properties']["Name"] = res_intersection["Name"][idx]
+            poly_index_list.append(poly)
         idx += 1
-    return del_poly.reset_index(drop=True), region['geometry'][0]
+    return poly_index_list, region['geometry'][0]
 
 
 def result_writer(result_poly):
     """ Writing the found geometry collection to a file in geojson format"""
+    val = {}
+    val["type"] = "FeatureCollection"
+    val["features"] = result_poly
     with open(output_file_path, 'w') as outfile:
-        json.dump(result_poly, outfile, indent=3)
+        json.dump(val, outfile, indent=3)
     outfile.close()
 
 
@@ -128,22 +140,19 @@ def choice_to_write(suitable_regions, cross_polygon, excess_poly):
 def print_name(polygon):
     """ Output to the console the names of certain polygons"""
     names = []
-    for el in polygon['features']:
+    for el in polygon:
         names.append(el["properties"]["Name"])
     names_to_str = ', '.join(names)
     return names_to_str
 
 
 def main():
-    # start_time = time.time()
     suitable_regions, region = get_intersecting_polygons("sentinel2_tiles.geojson", input_file_path)
-    # print("--- %s seconds ---" % (time.time() - start_time))
     excess = remove_excess_polygon(copy.deepcopy(suitable_regions), region)
-    # print(suitable_regions)
-    # cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
-    # result_choice = choice_to_write(suitable_regions, cross_polygon, excess)
-    # result_writer(result_choice)
-    # print(print_name(result_choice))
+    cross_polygon = check_cross_polygon(copy.deepcopy(suitable_regions), region)
+    result_choice = choice_to_write(suitable_regions, cross_polygon, excess)
+    result_writer(result_choice)
+    print(print_name(result_choice))
 
 
 if __name__ == '__main__':
