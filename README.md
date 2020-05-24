@@ -12,3 +12,8 @@
 
 * Для запуска unit-тестов:
 `python -m unittest unittests.py`
+
+####Заметки
+* Была переписана часть кода для поиска пересечений области с большой базой
+геометрий, задействован метод __overlay_intersection_ пакета _geopandas_ [GitHub](https://github.com/geopandas/geopandas/blob/master/geopandas/tools/overlay.py), который использует rtree пространственный индекс "под капотом".
+* Благодаря данному изменению скрипт стал работать примерно на 1,5с быстрее, чем в прошлом релизе.

@@ -1,6 +1,5 @@
 import argparse
 import json
-
 import geojson
 import shapely.geometry
 import shapely.ops
@@ -28,8 +27,7 @@ def check_cross_polygon(polygons_dict, region):
     result_poly_name = ''
     start_len = len(polygons_dict)
     poly_names = []
-    poly_region_default_area = area(
-        geojson.Feature(geometry=region, properties={}).geometry)
+    poly_region_default_area = area(geojson.Feature(geometry=region, properties={}).geometry)
     for main_el in polygons_dict:
         for child_el in polygons_dict:
             intersection_region_area = 0
@@ -98,8 +96,8 @@ def remove_excess_polygon(polygons_dict, region):
 
 def get_intersecting_polygons(sentinel_polygons, input_region):
     """ Finding polygons whose intersection area with a given area exceeds 1000 sq.m"""
-    sentinel = gpd.read_file(sentinel_polygons)
     region = gpd.read_file(input_region)
+    sentinel = gpd.read_file(sentinel_polygons, bbox=region)
     res_intersection = gpd.overlay(region, sentinel, how='intersection')
     sentinel_name_list = sentinel['Name'].values.tolist()
     sentinel_geometry_list = sentinel['geometry'].values
